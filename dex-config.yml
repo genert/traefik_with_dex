@@ -1,0 +1,46 @@
+---
+issuer: http://dex.testing.internal:5556
+
+storage:
+  type: memory
+
+web:
+  http: 0.0.0.0:5556
+
+frontend:
+  issuer: dex
+  dir: ""
+  theme: dark
+
+expiry:
+  deviceRequests: "5m"
+  signingKeys: "1h"
+  idTokens: "12h"
+  refreshTokens:
+    reuseInterval: 10s
+    validForIfNotUsed: 12h
+
+oauth2:
+  responseTypes: [ "code" ]
+  skipApprovalScreen: true
+  alwaysShowLoginScreen: false
+
+staticClients:
+  - id: forward-auth
+    redirectURIs:
+      - http://auth.testing.internal/_oauth
+      - http://testing.internal/_oauth
+    name: 'Forward auth'
+    secret: notReallySecretByDesign
+
+enablePasswordDB: true
+
+staticPasswords:
+- username: alfa
+  hash: $2y$10$nv3pwb7MjGmp1u.PZpPDL.gUCH9Y.TOzHQVA8CB7vTxvNBGHbwHyO
+  userID: 0e578a51-8c91-42d7-affe-0477d41f18a3
+  email: alfa@local.ss
+
+telemetry:
+  http: 0.0.0.0:5558
+

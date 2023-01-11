@@ -1,0 +1,76 @@
+version: '3.7'
+
+services:
+  traefik:
+    image: traefik:v2.9
+    restart: unless-stopped
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.web.proxyProtocol.insecure"
+    networks:
+      - testing
+    ports:
+      - "80:80"
+      - "8080:8080"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+
+  dex:
+    image: dexidp/dex:v2.35.3
+    command: [ 'dex', 'serve','/dex/dex-config.yml' ]
+    volumes:
+      - ./dex-config.yml:/dex/dex-config.yml
+      - /etc/localtime:/etc/localtime:ro
+    networks:
+      testing:
+        aliases:
+          - dex.testing.internal
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=testing"
+      - "traefik.http.routers.dex.rule=Host(`dex.testing.internal`)"
+      - "traefik.http.routers.dex.entrypoints=web"
+      - "traefik.http.services.dex.loadbalancer.server.port=5556"
+
+  traefik-forward-auth:
+    image: thomseddon/traefik-forward-auth:2.2
+    environment:
+      - DEFAULT_PROVIDER=oidc
+      - PROVIDERS_OIDC_ISSUER_URL=http://dex.testing.internal:5556
+      - PROVIDERS_OIDC_CLIENT_ID=forward-auth
+      - PROVIDERS_OIDC_CLIENT_SECRET=notReallySecretByDesign
+      - SECRET=imtoosexyformyshorts
+      - INSECURE_COOKIE=true
+      - LOG_LEVEL=debug
+    networks:
+      - testing
+    depends_on:
+      - dex
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=testing"
+      - "traefik.http.routers.auth.rule=Host(`auth.testing.internal`)"
+      - "traefik.http.routers.auth.entrypoints=web"
+      - "traefik.http.routers.auth.service=auth@docker"
+      - "traefik.http.services.auth.loadbalancer.server.port=4181"
+      - "traefik.http.middlewares.forward-auth.forwardauth.address=http://traefik-forward-auth:4181"
+      - "traefik.http.middlewares.forward-auth.forwardauth.trustForwardHeader=true"
+      - "traefik.http.middlewares.forward-auth.forwardauth.authResponseHeaders=X-Forwarded-User"
+      - "traefik.http.routers.auth.middlewares=forward-auth"
+
+  whoami:
+    image: "traefik/whoami"
+    networks:
+      testing:
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.whoami.rule=Host(`testing.internal`)"
+      - "traefik.http.routers.whoami.middlewares=forward-auth"
+      - "traefik.docker.network=testing"
+
+networks:
+  testing:
+    name: testing
